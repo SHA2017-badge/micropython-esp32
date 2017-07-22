@@ -9,13 +9,13 @@ def get_reboot_counter():
 
 def set_reboot_counter(value):
     esp.rtcmem_write(1023, value)
-    
+
 def increment_reboot_counter():
     val = get_reboot_counter()
     if (val<255):
         val = val + 1
     set_reboot_counter(val)
-    
+
 # BPP
 def bpp_execute():
     print("[SPLASH] Executing BPP...")
@@ -23,7 +23,7 @@ def bpp_execute():
     esp.rtcmem_write(0,2)
     esp.rtcmem_write(0,~2)
     deepsleep.reboot()
-    
+
 def bpp_check():
     global bpp_after_count
     if (get_reboot_counter()>bpp_after_count):
@@ -45,7 +45,7 @@ def setup_services():
         except OSError:
             print("[SPLASH] Listing app files for app '"+app+"' failed!")
             return False
-        
+
         found = False
         for f in files:
             if (f=="service.py"):
@@ -86,7 +86,7 @@ def draw_services():
                 y = y - abs(space_used)
         except BaseException as msg:
             print("[SPLASH] Service draw exception: ", msg)
-        
+
 # RTC
 def clockstring():
     [year, month, mday, wday, hour, min, sec, usec] = machine.RTC().datetime()
@@ -101,7 +101,7 @@ def clockstring():
       hourstr = "0"+hourstr
     minstr = str(min)
     if (min<10):
-      minstr = "0"+minstr 
+      minstr = "0"+minstr
     return daystr+"-"+monthstr+"-"+str(year)+" "+hourstr+":"+minstr
 
 def disableWifi():
@@ -110,9 +110,9 @@ def disableWifi():
     nw.active(False)
 
 def get_time_ntp(disable):
-    import ntp    
+    import ntp
     current_datetime = time.time()
-    
+
     if (current_datetime<1482192000): #If clock on time before 2017
         draw_msg("Configuring clock...", "Welcome!")
         if (wifi_connect()):
@@ -125,7 +125,7 @@ def get_time_ntp(disable):
         else:
             return False
         return True
-    
+
 # BATTERY
 def battery_percent_internal(vempty, vfull, vbatt):
     percent = round(((vbatt-vempty)*100)/(vfull-vempty))
@@ -151,7 +151,7 @@ def draw_msg(title, desc):
     ugfx.string(0, 25, desc, "Roboto_Regular12", ugfx.BLACK)
     ugfx.set_lut(ugfx.LUT_FASTER)
     ugfx.flush()
-    
+
 def draw_dialog(title, desc, msg):
     ugfx.clear(ugfx.WHITE)
     ugfx.string(0, 0, title, "PermanentMarker22", ugfx.BLACK)
@@ -167,7 +167,7 @@ def draw_logo(x,y,h):
     ugfx.line(x, y + 47, x + 14 + len, y + 47, ugfx.BLACK)
     ugfx.line(x + 10 + len, y + 27, x + 10 + len, y + 45, ugfx.BLACK)
     ugfx.string(x + 10, y + 50,"Anyway","Roboto_BlackItalic24",ugfx.BLACK)
-    
+
 def draw_helper_clear(full):
     if full:
         ugfx.clear(ugfx.BLACK)
@@ -175,7 +175,7 @@ def draw_helper_clear(full):
     ugfx.clear(ugfx.WHITE)
     if full:
         ugfx.flush()
-    
+
 def draw_helper_battery(percent,cstate):
     global header_fg
     global header_bg
@@ -193,39 +193,39 @@ def draw_helper_battery(percent,cstate):
                 ugfx.string(5,5,"empty","Roboto_Regular12",header_bg)
     else:
         ugfx.string(2,5,"no batt","Roboto_Regular12",header_bg)
-    
+
 def draw_helper_header(text):
     global header_fg
     global header_bg
     ugfx.area(0,0,ugfx.width(),23,header_bg)
     ugfx.string(45, 1, text,"DejaVuSans20",header_fg)
-    
+
 def draw_helper_footer(text_l, text_r):
     ugfx.string(0, ugfx.height()-13, text_l, "Roboto_Regular12",ugfx.BLACK)
     l = ugfx.get_string_width(text_r,"Roboto_Regular12")
     ugfx.string(ugfx.width()-l, ugfx.height()-13, text_r, "Roboto_Regular12",ugfx.BLACK)
-    
+
 def draw_helper_nick(default):
     nick = badge.nvs_get_str("owner", "name", default)
     ugfx.string(0, 40, nick, "PermanentMarker36", ugfx.BLACK)
     htext = badge.nvs_get_str("owner", "htext", "")
     if (htext!=""):
       draw_logo(160, 25, htext)
-    
+
 def draw_helper_flush(full):
     if (full):
         ugfx.set_lut(ugfx.LUT_FULL)
     ugfx.flush()
     ugfx.set_lut(ugfx.LUT_FASTER)
-    
+
 def draw_home(percent, cstate, status, full_clear, going_to_sleep):
     global update_available
     global update_name
     global update_build
-    
+
     if (update_available):
         status = "OTA update available"
-    
+
     draw_helper_clear(full_clear)
     global header_hide_while_sleeping
     if (header_hide_while_sleeping and going_to_sleep):
@@ -243,19 +243,19 @@ def draw_home(percent, cstate, status, full_clear, going_to_sleep):
         info = "[ ANY: Exit BPP ]"
     else:
         info = "[ START: LAUNCHER ]"
-        
+
     clock = clockstring()
 
     if (update_available):
         ugfx.string(0, 25, "Update to version "+str(update_build)+ " '"+update_name+"' available","Roboto_Regular12",ugfx.BLACK)
         info = "[ B: OTA UPDATE ] "+info
         clock = ""
-    
+
     draw_helper_footer(clock,info)
     draw_helper_nick("Unknown")
     draw_services()
     draw_helper_flush(True)
-    
+
 def draw_batterylow(percent):
     draw_helper_clear(True)
     draw_helper_header("")
@@ -263,7 +263,7 @@ def draw_batterylow(percent):
     draw_helper_footer("BATTERY LOW, CONNECT CHARGER!", "")
     draw_helper_nick(":(           Zzzz...")
     draw_helper_flush(False)
-    
+
 # START LAUNCHER
 def start_launcher(pushed):
     if(pushed):
@@ -272,19 +272,19 @@ def start_launcher(pushed):
         splashTimer.deinit()
         increment_reboot_counter()
         appglue.start_app("launcher")
-        
+
 def start_ota(pushed):
     if(pushed):
         print("[SPLASH] Starting OTA...")
         appglue.start_ota()
-        
+
 # MAGIC
 def actually_start_magic():
     print("[SPLASH] Starting magic...")
     esp.rtcmem_write_string("magic")
     deepsleep.reboot()
 
-magic = 0        
+magic = 0
 def start_magic(pushed):
     global magic
     if(pushed):
@@ -293,7 +293,7 @@ def start_magic(pushed):
             actually_start_magic()
         else:
             print("[SPLASH] Magic in "+str(10-magic)+"...")
-      
+
 # SLEEP
 def badge_sleep():
     increment_reboot_counter()
@@ -301,13 +301,13 @@ def badge_sleep():
     print("[SPLASH] Going to sleep now...")
     badge.eink_busy_wait() #Always wait for e-ink
     deepsleep.start_sleeping(sleep_duration*1000)
-    
+
 def badge_sleep_forever():
     increment_reboot_counter()
     print("[SPLASH] Going to sleep WITHOUT TIME WAKEUP now...")
     badge.eink_busy_wait() #Always wait for e-ink
     deepsleep.start_sleeping(0) #Sleep until button interrupt occurs
-    
+
 # TIMER
 def splashTimer_callback(tmr):
     global loopCnt
@@ -338,20 +338,20 @@ def splashTimer_callback(tmr):
         if (loop_services(loopCnt)):
             loopCnt = timer_loop_amount
     loopCnt = loopCnt - 1
-  
+
 def start_sleep_counter():
     global splashTimer
     global splash_timer_interval
     splashTimer.init(period=splash_timer_interval, mode=machine.Timer.PERIODIC, callback=splashTimer_callback)
-  
+
 def stop_sleep_counter():
     global splashTimer
     splashTimer.deinit()
-    
+
 def restart_sleep_counter():
     stop_sleep_counter()
     start_sleep_counter()
-    
+
 # WIFI
 def wifi_connect():
     import wifi
@@ -371,7 +371,7 @@ def wifi_connect():
         else:
             pass
     return True
-    
+
 # CHECK OTA VERSION
 
 def download_ota_info():
@@ -461,13 +461,13 @@ def load_settings():
         print("[SPLASH] Sleep duration set to less than 30 seconds. Forcing 30 seconds.")
         sleep_duration = 30
     #if (sleep_duration>120):
-    #    print("[SPLASH] Sleep duration set to more than 120 seconds. Forcing 120 seconds.") 
+    #    print("[SPLASH] Sleep duration set to more than 120 seconds. Forcing 120 seconds.")
     global battery_volt_min
-    battery_volt_min = badge.nvs_get_u16('splash', 'battery.volt.min', 3700) # mV
+    battery_volt_min = badge.nvs_get_u16('splash', 'battery.volt.min', 3600) # mV
     global battery_volt_max
-    battery_volt_max = badge.nvs_get_u16('splash', 'battery.volt.max', 4200) # mV
+    battery_volt_max = badge.nvs_get_u16('splash', 'battery.volt.max', 4100) # mV
     global battery_percent_empty
-    battery_percent_empty = badge.nvs_get_u8('splash', 'battery.percent.empty', 1) # %
+    battery_percent_empty = badge.nvs_get_u8('splash', 'battery.percent.empty', 20) # %
     global ntp_timeout
     ntp_timeout = badge.nvs_get_u8('splash', 'ntp.timeout', 40) #amount of tries
     global bpp_after_count
@@ -475,21 +475,22 @@ def load_settings():
     global splash_timer_interval
     splash_timer_interval = badge.nvs_get_u16('splash', 'timer.interval', 200)
     global timer_loop_amount
+
     timer_loop_amount = badge.nvs_get_u8('splash', 'timer.amount', 25)
     global loopCnt
     loopCnt = timer_loop_amount
-    
+
 # MAIN
-def splash_main():   
+def splash_main():
     cstate = badge.battery_charge_status()
     percent = battery_percent()
     vbatt = badge.battery_volt_sense()
     print("[SPLASH] Vbatt = "+str(vbatt))
     load_settings()
-    
+
     global header_status_string
     header_status_string = ""
-        
+
     ugfx.init()
     global battery_percent_empty
     if (cstate) or (percent>battery_percent_empty) or (vbatt<100):
@@ -505,9 +506,9 @@ def splash_main():
             full_clear = True
         draw_home(percent, cstate, header_status_string, full_clear, False)
     else:
-        draw_batterylow(percent)       
+        draw_batterylow(percent)
         badge_sleep_forever()
-  
+
 # GLOBALS (With defaults that will probably never be used)
 splashTimer = machine.Timer(0)
 services = []
@@ -531,4 +532,3 @@ update_name = "BIG FAT ERROR"
 update_build = 0
 
 splash_main()
- 
