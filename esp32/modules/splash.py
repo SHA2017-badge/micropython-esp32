@@ -489,19 +489,21 @@ def load_settings():
     timer_loop_amount = badge.nvs_get_u8('splash', 'timer.amount', 25)
     global loopCnt
     loopCnt = timer_loop_amount
-    
+
 # MAIN
-def splash_main():   
+def splash_main():
     cstate = badge.battery_charge_status()
+    load_settings()
+
+    global header_status_string
+    header_status_string = ""
+
+    ugfx.init()
+
     percent = battery_percent()
     vbatt = badge.battery_volt_sense()
     print("[SPLASH] Vbatt = "+str(vbatt))
-    load_settings()
-    
-    global header_status_string
-    header_status_string = ""
-        
-    ugfx.init()
+
     global battery_percent_empty
     if (cstate) or (percent>battery_percent_empty) or (vbatt<100):
         ugfx.input_init()
