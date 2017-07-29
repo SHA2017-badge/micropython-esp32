@@ -31,6 +31,7 @@
 #include <string.h>
 #include "esp_spi_flash.h"
 #include "wear_levelling.h"
+#include <esp_log.h>
 
 #include "drivers/dht/dht.h"
 #include "modesp.h"
@@ -127,7 +128,8 @@ STATIC mp_obj_t esp_rtcmem_write_(mp_obj_t _pos, mp_obj_t _val) {
 	int val = mp_obj_get_int(_val);
 
 	if (val < 0 || val > 255) {
-		mp_raise_msg(&mp_type_IndexError, "Value out of range");
+//		mp_raise_msg(&mp_type_IndexError, "Value out of range");
+		ESP_LOGI("modesp", "esp.rtcmem_write() is trying to write an out or range value");
 	}
 	int res = esp_rtcmem_write(pos, val);
 	if (res < 0) {
