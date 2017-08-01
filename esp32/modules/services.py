@@ -6,7 +6,17 @@
 # Authors: Renze Nicolai <renze@rnplus.nl>
 #          Thomas Roos   <?>
 
-import uos, ujson, easywifi, easyrtc, time, appglue, deepsleep, ugfx, badge, machine
+import uos
+import ujson
+import easywifi
+import easyrtc
+import time
+import appglue
+import deepsleep
+import ugfx
+import badge
+import machine
+import sys
 
 services = [] #List containing all the service objects
 loopCallbacks = {} #Dict containing: {<FUNCTION>:<Wifi required on next run>}
@@ -16,26 +26,26 @@ def setup(pmCb=None, drawCb=None):
     global services
     global loopCallbacks
     global drawCallbacks
-    
+
     if pmCb:
         print("[SERVICES] Power management callback registered")
         global pmCallback
         pmCallback = pmCb
-    
+
     if drawCb:
         print("[SERVICES] Draw callback registered")
         global drawCallback
         drawCallback = drawCb #This might need a better name...
-    
+
     # Status of wifi
     wifiFailed = False
-    
+
     #Check if lib folder exists and get application list, else stop
     try:
         apps = uos.listdir('lib')
     except OSError:
         return [False, False]
-    
+
     #For each app...
     for app in apps:
         print("APP: "+app)
@@ -47,9 +57,9 @@ def setup(pmCb=None, drawCb=None):
         except:
             print("[SERVICES] No description found for "+app)
             continue #Or skip the app
-        
+
         print("DESC FOUND FOR: "+app)
-        
+
         try:
             #Try to open the service itself
             fd = open('/lib/'+app+'/service.py')
@@ -57,16 +67,16 @@ def setup(pmCb=None, drawCb=None):
         except:
             print("[SERVICES] No script found for "+app)
             continue #Or skip the app
-        
+
         print("SCRIPT FOUND FOR: "+app)
-        
+
         rtcRequired = False # True if RTC should be set before starting service
         loopEnabled = False # True if loop callback is requested
         drawEnabled = False # True if draw callback is requested
-        
+
         wifiInSetup = False # True if wifi needed in setup
         wifiInLoop = False # True if wifi needed in loop
-        
+
         try:
             if description['apiVersion']!=1:
                 print("[SERVICES] Service for "+app+" is not compatible with current firmware")
@@ -79,16 +89,16 @@ def setup(pmCb=None, drawCb=None):
         except:
             print("[SERVICES] Could not parse description of app "+app)
             continue #Skip the app
-        
+
         print("[SERVICES] Found service for "+app)
-        
+
         # Import the service.py script
         try:
             srv = __import__('lib/'+app+'/service')
         except BaseException as msg:
             print("[SERVICES] Could not import service of app "+app+": ", msg)
             continue #Skip the app
-        
+
         if wifiInSetup:
             if wifiFailed:
                 print("[SERVICES] Service of app "+app+" requires wifi and wifi failed so the service has been disabled.")
@@ -106,28 +116,28 @@ def setup(pmCb=None, drawCb=None):
             else:
                 print("[SERVICES] RTC required but not available. Skipping service.")
                 continue # Skip the app (because wifi failed and rtc not available)
-        
+
         try:
             srv.setup()
         except BaseException as msg:
             print("[SERVICES] Exception in service setup "+app+": ", msg)
             continue
-        
+
         if loopEnabled:
             try:
                 loopCallbacks[srv.loop] = wifiInLoop
             except:
                 print("[SERVICES] Loop requested but not defined in service "+app)
-            
+
         if drawEnabled and drawCb:
             try:
                 drawCallbacks.append(srv.draw)
             except:
                 print("[SERVICES] Draw requested but not defined in service "+app)
-        
+
         # Add the script to the global service list
         services.append(srv)
-        
+
     # Create loop timer
     hasLoopTimer = False
     global loopTimer
@@ -136,7 +146,7 @@ def setup(pmCb=None, drawCb=None):
         loopTimer = machine.Timer(0) #TODO: how to get this number?!?
         loop_timer_callback(loopTimer)
         hasLoopTimer = True
-        
+
     # Create draw timer
     hasDrawTimer = False
     global drawTimer
@@ -146,7 +156,7 @@ def setup(pmCb=None, drawCb=None):
         draw_timer_callback(drawTimer)
         hasDrawTimer = True
     return [hasLoopTimer, hasDrawTimer]
-            
+
 def loop_timer_callback(tmr):
     global loopCallbacks
     requestedInterval = 99999999
@@ -163,8 +173,9 @@ def loop_timer_callback(tmr):
         rqi = 0
         try:
             rqi = cb()
-        except BaseException as msg:
-            print("[SERVICES] Exception in service loop: ", msg)
+        except BaseException as e:
+            print("[SERVICES] Exception in service loop")
+            sys.print_exception(e)
             newLoopCallbacks.pop(cb)
             continue
         if rqi>0 and rqi<requestedInterval:
@@ -175,29 +186,30 @@ def loop_timer_callback(tmr):
             newLoopCallbacks.pop(cb)
     loopCallbacks = newLoopCallbacks
     del(newLoopCallbacks)
-    
+
     if requestedInterval>=99999999:
         print("[SERVICES] No loop interval returned.")
         requestedInterval = -1
-        
+
     easywifi.disable() # Always disable wifi
-    
+
     try:
         global pmCallback
         if pmCallback(requestedInterval):
             print("[SERVICES] Loop timer (re-)started")
             tmr.init(period=requestedInterval*1000, mode=machine.Timer.ONE_SHOT, callback=loop_timer_callback)
-    except:
+    except BaseException as e:
         print("[SERVICES] Error in power management callback!")
+        sys.print_exception(e)
 
 def draw_timer_callback(tmr):
     global drawCallback #The function that allows us to hook into our host
     global drawCallbacks #The functions of the services
     requestedInterval = 99999999
     y = ugfx.height()
-    
+
     drawCallback(False) # Prepare draw
-    
+
     newDrawCallbacks = drawCallbacks
     for i in range(0, len(drawCallbacks)):
         cb = drawCallbacks[i]
@@ -205,8 +217,9 @@ def draw_timer_callback(tmr):
         try:
             [rqi, space_used] = cb(y)
             y = y - space_used
-        except BaseException as msg:
-            print("[SERVICES] Exception in service draw: ", msg)
+        except BaseException as e:
+            print("[SERVICES] Exception in service draw")
+            sys.print_exception(e)
             newDrawCallbacks.pop(i)
             continue
         if rqi>0 and rqi<requestedInterval:
@@ -217,17 +230,17 @@ def draw_timer_callback(tmr):
             newDrawCallbacks.pop(cb)
     drawCallbacks = newDrawCallbacks
     del(newDrawCallbacks)
-    
+
     badge.eink_busy_wait()
-    
+
     if requestedInterval>=99999999:
         print("[SERVICES] No draw interval returned.")
         requestedInterval = -1
-    
+
     if len(drawCallbacks)>0 and requestedInterval>=0:
         print("[SERVICES] New draw requested in "+str(requestedInterval)+".")
-        tmr.init(period=requestedInterval*1000, mode=machine.Timer.ONE_SHOT, callback=draw_timer_callback) 
-       
+        tmr.init(period=requestedInterval*1000, mode=machine.Timer.ONE_SHOT, callback=draw_timer_callback)
+
     drawCallback(True) # Complete draw
 
 def force_draw(disableTimer):
@@ -247,5 +260,6 @@ def force_draw(disableTimer):
             try:
                 [rqi, space_used] = cb(y)
                 y = y - space_used
-            except BaseException as msg:
-                print("[SERVICES] Exception in service draw: ", msg)
+            except BaseException as e:
+                print("[SERVICES] Exception in service draw")
+                sys.print_exception(e)
