@@ -15,9 +15,9 @@ def populate_it():
     for app in apps:
         if not app=="resources":
             options.add_item(app)
-            
+
     options.add_item('setup')
-        
+
 def run_it(pushed):
     if (pushed):
         selected = options.selected_text()
@@ -63,7 +63,7 @@ def uninstall_it(pushed):
 
         import dialogs
         uninstall = dialogs.prompt_boolean('Are you sure you want to remove %s?' % selected, cb=perform_uninstall)
-        
+
 
 ugfx.input_init()
 ugfx.set_lut(ugfx.LUT_FASTER)
@@ -107,6 +107,6 @@ ugfx.input_attach(ugfx.JOY_UP, lambda pushed: ugfx.flush() if pushed else 0)
 ugfx.input_attach(ugfx.JOY_DOWN, lambda pushed: ugfx.flush() if pushed else 0)
 
 ugfx.input_attach(ugfx.BTN_B, lambda pushed: appglue.home() if pushed else 0)
-#ugfx.input_attach(ugfx.BTN_START, lambda pushed: appglue.home() if pushed else 0)
+ugfx.input_attach(ugfx.BTN_START, lambda pushed: appglue.home() if pushed else 0)
 
 ugfx.flush(ugfx.LUT_FULL)
