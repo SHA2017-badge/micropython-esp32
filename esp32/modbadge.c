@@ -339,6 +339,23 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_3(badge_eink_png_obj, badge_eink_png);
 /* END OF PNG READER TEST */
 
 
+/* Raw frame display */
+
+STATIC mp_obj_t badge_eink_raw_frame(mp_obj_t obj_img, mp_obj_t obj_flags)
+{
+	// convert the input buffer into a byte array
+	uint8_t* buffer = (uint8_t*)mp_obj_str_get_str(obj_img);
+	
+	int flags = mp_obj_get_int(obj_flags);
+	
+	// display the image directly
+	badge_eink_display(buffer, flags);
+
+	return mp_const_none;
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_2(badge_eink_raw_frame_obj, badge_eink_raw_frame);
+
+
 // Power (badge_power.h)
 
 STATIC mp_obj_t badge_power_init_() {
@@ -614,6 +631,7 @@ STATIC const mp_rom_map_elem_t badge_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_eink_busy_wait), MP_ROM_PTR(&badge_eink_busy_wait_obj)},
 
     {MP_ROM_QSTR(MP_QSTR_eink_png), MP_ROM_PTR(&badge_eink_png_obj)},
+	{MP_ROM_QSTR(MP_QSTR_eink_raw_frame), MP_ROM_PTR(&badge_eink_raw_frame_obj)},
 
 /*
     {MP_ROM_QSTR(MP_QSTR_display_picture), MP_ROM_PTR(&badge_display_picture_obj)},
