@@ -719,7 +719,7 @@ OBJ_ESPIDF += $(addprefix $(BUILD)/, $(BADGE_COMPONENTS_O))
 
 all: $(BUILD)/firmware.bin
 
-.PHONY: idf-version deploy erase
+.PHONY: idf-version deploy erase update-application
 
 idf-version:
 	$(ECHO) "ESP IDF supported hash: $(ESPIDF_SUPHASH)"
@@ -731,6 +731,11 @@ $(BUILD)/firmware.bin: $(BUILD)/bootloader.bin $(BUILD)/partitions.bin $(BUILD)/
 deploy: $(BUILD)/firmware.bin
 	$(ECHO) "Writing $^ to the board"
 	$(Q)$(ESPTOOL) --chip esp32 --port $(PORT) --baud $(BAUD) write_flash -z --flash_mode $(FLASH_MODE) --flash_freq $(FLASH_FREQ) 0x1000 $^
+
+update-application: $(BUILD)/application.bin
+	$(ECHO) "Writing $^ to the board"
+	$(Q)$(ESPTOOL) --chip esp32 --port $(PORT) --baud $(BAUD) write_flash -z --flash_mode $(FLASH_MODE) --flash_freq $(FLASH_FREQ) 0x10000 $^
+	$(Q)$(ESPTOOL) --chip esp32 --port $(PORT) --baud $(BAUD) write_flash -z --flash_mode $(FLASH_MODE) --flash_freq $(FLASH_FREQ) 0x190000 $^
 
 erase:
 	$(ECHO) "Erasing flash"
