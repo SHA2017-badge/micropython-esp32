@@ -12,11 +12,16 @@ onSleepCallback = None
 userResponseTime = badge.nvs_get_u16('splash', 'urt', 5000)
 
 def pm_task():
+    global userResponseTime
     ''' The power management task [internal function] '''
     global requestedStandbyTime
     
     idleTime = virtualtimers.idle_time()
     print("[Power management] Next task wants to run in "+str(idleTime)+" ms.")
+    if badge.battery_charge_status():
+        print("[Power management] Not sleeping on USB power")
+        idleTime = 0
+        return userResponseTime
         
     if idleTime>30000:
         global onSleepCallback
@@ -35,7 +40,6 @@ def pm_task():
             print("[Power management] Sleeping for "+str(idleTime)+" ms...")
             deepsleep.start_sleeping(idleTime)
     
-    global userResponseTime
     return userResponseTime
 
 def feed():
