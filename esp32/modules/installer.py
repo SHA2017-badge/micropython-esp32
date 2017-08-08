@@ -45,6 +45,18 @@ def show_description(active):
 		text.text(packages[options.selected_index()]["description"])
 		ugfx.flush()
 
+def move_sel(active,dir_):
+	if active:
+		sel = options.selected_index()
+		print("Ingoing:", sel)
+		while sel > 0 and sel < len(packages) and packages[sel] is None:
+			print("Dummy:", sel, packages[sel])
+			sel += dir_
+		if sel > 0 and sel < len(packages):
+			print("Final:", sel)
+			options.selected_index(sel)
+		show_description(True)
+
 def select_category(active):
 	if active:
 		global categories
@@ -85,12 +97,50 @@ def list_apps(slug):
 		gc.collect()
 		return
 
-	for package in packages:
-		options.add_item("%s rev. %s" % (package["name"], package["revision"]))
+	# Based on ugfx_widgets.c, it's
+	# width - (LST_SCROLLWIDTH+3) - LST_HORIZ_PAD
+	# which works out to width - 20
+	maxwidth = int(ugfx.width()/2) - 20
+	i = 0
+	for package in packages.copy():
+		item = "%s rev. %s" % (package["name"], package["revision"])
+		width = ugfx.get_string_width(item, "Roboto_Regular12")
+		if width <= maxwidth:
+			options.add_item(item)
+		else:
+			s = ""
+			width = 0
+			count = 0
+			for c in item:
+				cw = ugfx.get_char_width(ord(c), "Roboto_Regular12")
+				if width == 0 or width + cw <= maxwidth:
+					s += c
+					width += cw
+				else:
+					options.add_item(s)
+					if count:
+						i += 1
+						packages.insert(i, None)
+						print("Extra:", i, s)
+					else:
+						print("First:", i, s)
+					count += 1
+					if count == 3: # Cut off the rest
+						s = ""
+						break
+					s = c
+					width = cw
+			if s:
+				options.add_item(s)
+				if count: # Should be unneeded, defensive
+					i += 1
+					packages.insert(i, None)
+					print("Extra:", i, s)
+		i += 1
 	options.selected_index(0)
 
-	ugfx.input_attach(ugfx.JOY_UP, show_description)
-	ugfx.input_attach(ugfx.JOY_DOWN, show_description)
+	ugfx.input_attach(ugfx.JOY_UP, lambda pushed: move_sel(pushed, -1))
+	ugfx.input_attach(ugfx.JOY_DOWN, lambda pushed: move_sel(pushed, 1))
 	ugfx.input_attach(ugfx.BTN_A, install_app)
 	ugfx.input_attach(ugfx.BTN_B, lambda pushed: list_categories() if pushed else False)
 	ugfx.input_attach(ugfx.BTN_START, lambda pushed: appglue.start_app('') if pushed else False)
