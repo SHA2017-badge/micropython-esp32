@@ -48,12 +48,9 @@ def show_description(active):
 def move_sel(active,dir_):
 	if active:
 		sel = options.selected_index()
-		print("Ingoing:", sel)
 		while sel > 0 and sel < len(packages) and packages[sel] is None:
-			print("Dummy:", sel, packages[sel])
 			sel += dir_
 		if sel > 0 and sel < len(packages):
-			print("Final:", sel)
 			options.selected_index(sel)
 		show_description(True)
 
@@ -121,9 +118,6 @@ def list_apps(slug):
 					if count:
 						i += 1
 						packages.insert(i, None)
-						print("Extra:", i, s)
-					else:
-						print("First:", i, s)
 					count += 1
 					if count == 3: # Cut off the rest
 						s = ""
@@ -135,7 +129,6 @@ def list_apps(slug):
 				if count: # Should be unneeded, defensive
 					i += 1
 					packages.insert(i, None)
-					print("Extra:", i, s)
 		i += 1
 	options.selected_index(0)
 
