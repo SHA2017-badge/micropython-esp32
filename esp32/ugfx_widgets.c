@@ -635,7 +635,13 @@ void BWgwinListDefaultDraw(GWidgetObject* gw, void* param) {
 				}
 			}
 		#endif
-		gdispGFillStringBox(gw->g.display, gw->g.x+x+LST_HORIZ_PAD, gw->g.y+y, iwidth-LST_HORIZ_PAD, iheight, qi2li->text, gw->g.font, text, fill, justifyLeft);
+		#if GDISP_NEED_CLIP
+			gdispGSetClip(gw->g.display, gw->g.x+x+LST_HORIZ_PAD, gw->g.y+y, iwidth-LST_HORIZ_PAD, MIN(iheight, gw->g.height-y-1));
+		#endif
+		gdispGFillString(gw->g.display, gw->g.x+x+LST_HORIZ_PAD, gw->g.y+y, qi2li->text, gw->g.font, text, fill);
+		#if GDISP_NEED_CLIP
+			gdispGSetClip(gw->g.display, gw->g.x+1, gw->g.y+1, gw->g.width-2, gw->g.height-2);
+		#endif
 	}
 
 	// Fill any remaining item space
