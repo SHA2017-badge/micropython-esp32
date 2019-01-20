@@ -68,6 +68,7 @@ INC_ESPCOMP += -I$(ESPCOMP)/nghttp/port/include
 INC_ESPCOMP += -I$(ESPCOMP)/nghttp/nghttp2/lib/includes
 INC_ESPCOMP += -I$(ESPCOMP)/esp32/include
 INC_ESPCOMP += -I$(ESPCOMP)/soc/esp32/include
+INC_ESPCOMP += -I$(ESPCOMP)/smartconfig_ack/include
 INC_ESPCOMP += -I$(ESPCOMP)/ethernet/include
 INC_ESPCOMP += -I$(ESPCOMP)/expat/include/expat
 INC_ESPCOMP += -I$(ESPCOMP)/expat/port/include
@@ -81,7 +82,7 @@ INC_ESPCOMP += -I$(ESPCOMP)/tcpip_adapter/include
 INC_ESPCOMP += -I$(ESPCOMP)/lwip/include/lwip
 INC_ESPCOMP += -I$(ESPCOMP)/lwip/include/lwip/port
 INC_ESPCOMP += -I$(ESPCOMP)/lwip/include/lwip/posix
-INC_ESPCOMP += -I$(ESPCOMP)/mbedtls/include
+INC_ESPCOMP += -I$(ESPCOMP)/mbedtls/mbedtls/include
 INC_ESPCOMP += -I$(ESPCOMP)/mbedtls/port/include
 INC_ESPCOMP += -I$(ESPCOMP)/spi_flash/include
 INC_ESPCOMP += -I$(ESPCOMP)/wear_levelling/include
@@ -100,6 +101,7 @@ INC_ESPCOMP += -I$(ESPCOMP)/sdmmc/include
 INC_ESPCOMP += -I$(ESPCOMP)/heap/include
 INC_ESPCOMP += -I$(ESPCOMP)/soc/include
 INC_ESPCOMP += -I$(ESPCOMP)/fatfs/src
+INC_ESPCOMP += -I$(ESPCOMP)/pthread/include
 
 CFLAGS_BASE = -std=gnu99 -Os -ffunction-sections -fdata-sections -fstrict-volatile-bitfields -mlongcalls -nostdlib -Wall -Wno-error=unused-function -Wno-error=unused-but-set-variable -Wno-error=unused-variable -Wno-error=deprecated-declarations -DMBEDTLS_CONFIG_FILE='"mbedtls/esp_config.h"' -DHAVE_CONFIG_H -DESP_PLATFORM
 CFLAGS = $(CFLAGS_BASE) $(INC) $(INC_ESPCOMP)
@@ -216,8 +218,8 @@ endif
 ifeq ($(MICROPY_NATIVEFS), 1)
 LIB_SRC_C += \
 	$(ESPCOMP)/fatfs/src/ff.c \
+	$(ESPCOMP)/fatfs/src/diskio_wl.c \
 	$(ESPCOMP)/fatfs/src/diskio_sdmmc.c \
-	$(ESPCOMP)/fatfs/src/diskio_spiflash.c \
 	$(ESPCOMP)/fatfs/src/diskio.c \
 	$(ESPCOMP)/fatfs/src/vfs_fat_sdmmc.c \
 	$(ESPCOMP)/fatfs/src/vfs_fat_spiflash.c \
@@ -259,6 +261,7 @@ ESPIDF_DRIVER_O = $(addprefix $(ESPCOMP)/driver/,\
 	sdmmc_host.o \
 	sdmmc_transaction.o \
 	sdspi_host.o \
+	i2s.o \
 	)
 
 $(BUILD)/$(ESPCOMP)/esp32/dport_access.o: CFLAGS += -Wno-array-bounds
@@ -287,11 +290,13 @@ ESPIDF_ESP32_O = $(addprefix $(ESPCOMP)/esp32/,\
 	brownout.o \
 	fast_crypto_ops.o \
 	wifi_init.o \
-	wifi_internal.o \
+	wifi_os_adapter.o \
 	sleep_modes.o \
 	esp_timer.o \
 	esp_timer_esp32.o \
 	ets_timer_legacy.o \
+	esp_err_to_name.o \
+	dbg_stubs.o \
 	)
 
 ESPIDF_PTHREAD_O = $(addprefix $(ESPCOMP)/pthread/,\
@@ -312,6 +317,9 @@ ESPIDF_SOC_O = $(addprefix $(ESPCOMP)/soc/,\
 	esp32/rtc_pm.o \
 	esp32/rtc_sleep.o \
 	esp32/rtc_time.o \
+	esp32/rtc_periph.o \
+	esp32/spi_periph.o \
+	esp32/gpio_periph.o \
 	esp32/soc_memory_layout.o \
 	)
 
@@ -324,6 +332,10 @@ ESPIDF_ETHERNET_O = $(addprefix $(ESPCOMP)/ethernet/,\
 	emac_main.o \
 	)
 
+ESPIDF_SMARTCONFIG_ACK_O = $(addprefix $(ESPCOMP)/smartconfig_ack/,\
+	smartconfig_ack.o \
+	)
+
 ESPIDF_APP_TRACE_O = $(addprefix $(ESPCOMP)/app_trace/,\
 	app_trace.o \
 	)
@@ -334,6 +346,8 @@ ESPIDF_APP_UPDATE_O = $(addprefix $(ESPCOMP)/app_update/,\
 
 ESPIDF_BOOTLOADER_O = $(addprefix $(ESPCOMP)/bootloader_support/src/,\
 	esp_image_format.o \
+	bootloader_init.o \
+	bootloader_utility.o \
 	bootloader_sha.o \
 	bootloader_flash.o \
 	)
@@ -410,6 +424,7 @@ ESPIDF_APP_TRACE_O = $(addprefix $(ESPCOMP)/app_trace/,\
 
 ESPIDF_NEWLIB_O = $(addprefix $(ESPCOMP)/newlib/,\
 	time.o \
+	select.o \
 	syscalls.o \
 	syscall_table.o \
 	reent_init.o \
@@ -443,6 +458,7 @@ ESPIDF_NGHTTP_O = $(addprefix $(ESPCOMP)/nghttp/,\
 
 ESPIDF_NVS_FLASH_O = $(addprefix $(ESPCOMP)/nvs_flash/,\
 	src/nvs_types.o \
+	src/nvs_ops.o \
 	src/nvs_page.o \
 	src/nvs_item_hash_list.o \
 	src/nvs_pagemanager.o \
@@ -531,75 +547,77 @@ ESPIDF_LWIP_O = $(addprefix $(ESPCOMP)/lwip/,\
 	)
 
 ESPIDF_MBEDTLS_O = $(addprefix $(ESPCOMP)/mbedtls/,\
-	library/entropy.o \
-	library/pkcs12.o \
-	library/ccm.o \
-	library/pk.o \
-	library/sha1.o \
-	library/x509_csr.o \
-	library/ssl_cli.o \
-	library/ecp.o \
-	library/blowfish.o \
-	library/x509.o \
-	library/ecp_curves.o \
-	library/error.o \
-	library/ssl_ticket.o \
-	library/entropy_poll.o \
-	library/cipher.o \
-	library/version_features.o \
-	library/ripemd160.o \
-	library/rsa.o \
-	library/md.o \
-	library/md_wrap.o \
-	library/sha256.o \
-	library/dhm.o \
-	library/ssl_cache.o \
-	library/pkwrite.o \
-	library/base64.o \
-	library/asn1parse.o \
-	library/ssl_tls.o \
-	library/hmac_drbg.o \
-	library/pem.o \
-	library/version.o \
-	library/gcm.o \
-	library/memory_buffer_alloc.o \
-	library/md2.o \
-	library/ecdsa.o \
-	library/ssl_srv.o \
-	library/x509_crt.o \
-	library/ecdh.o \
-	library/asn1write.o \
-	library/md4.o \
-	library/debug.o \
-	library/x509_create.o \
-	library/ecjpake.o \
-	library/oid.o \
-	library/md5.o \
-	library/ssl_ciphersuites.o \
-	library/sha512.o \
-	library/xtea.o \
-	library/aes.o \
-	library/cipher_wrap.o \
-	library/arc4.o \
-	library/bignum.o \
-	library/pkparse.o \
-	library/padlock.o \
-	library/threading.o \
-	library/x509_crl.o \
-	library/pkcs11.o \
-	library/aesni.o \
-	library/timing.o \
-	library/certs.o \
-	library/pkcs5.o \
-	library/ssl_cookie.o \
-	library/camellia.o \
-	library/havege.o \
-	library/des.o \
-	library/x509write_csr.o \
-	library/platform.o \
-	library/ctr_drbg.o \
-	library/x509write_crt.o \
-	library/pk_wrap.o \
+	mbedtls/library/entropy.o \
+	mbedtls/library/pkcs12.o \
+	mbedtls/library/ccm.o \
+	mbedtls/library/pk.o \
+	mbedtls/library/sha1.o \
+	mbedtls/library/x509_csr.o \
+	mbedtls/library/ssl_cli.o \
+	mbedtls/library/ecp.o \
+	mbedtls/library/blowfish.o \
+	mbedtls/library/x509.o \
+	mbedtls/library/ecp_curves.o \
+	mbedtls/library/error.o \
+	mbedtls/library/ssl_ticket.o \
+	mbedtls/library/entropy_poll.o \
+	mbedtls/library/cipher.o \
+	mbedtls/library/version_features.o \
+	mbedtls/library/ripemd160.o \
+	mbedtls/library/rsa.o \
+	mbedtls/library/rsa_internal.o \
+	mbedtls/library/md.o \
+	mbedtls/library/md_wrap.o \
+	mbedtls/library/sha256.o \
+	mbedtls/library/dhm.o \
+	mbedtls/library/ssl_cache.o \
+	mbedtls/library/pkwrite.o \
+	mbedtls/library/base64.o \
+	mbedtls/library/asn1parse.o \
+	mbedtls/library/ssl_tls.o \
+	mbedtls/library/hmac_drbg.o \
+	mbedtls/library/pem.o \
+	mbedtls/library/version.o \
+	mbedtls/library/gcm.o \
+	mbedtls/library/memory_buffer_alloc.o \
+	mbedtls/library/md2.o \
+	mbedtls/library/ecdsa.o \
+	mbedtls/library/ssl_srv.o \
+	mbedtls/library/x509_crt.o \
+	mbedtls/library/ecdh.o \
+	mbedtls/library/asn1write.o \
+	mbedtls/library/md4.o \
+	mbedtls/library/debug.o \
+	mbedtls/library/x509_create.o \
+	mbedtls/library/ecjpake.o \
+	mbedtls/library/oid.o \
+	mbedtls/library/md5.o \
+	mbedtls/library/ssl_ciphersuites.o \
+	mbedtls/library/sha512.o \
+	mbedtls/library/xtea.o \
+	mbedtls/library/aes.o \
+	mbedtls/library/cipher_wrap.o \
+	mbedtls/library/arc4.o \
+	mbedtls/library/bignum.o \
+	mbedtls/library/pkparse.o \
+	mbedtls/library/padlock.o \
+	mbedtls/library/threading.o \
+	mbedtls/library/x509_crl.o \
+	mbedtls/library/pkcs11.o \
+	mbedtls/library/aesni.o \
+	mbedtls/library/timing.o \
+	mbedtls/library/certs.o \
+	mbedtls/library/pkcs5.o \
+	mbedtls/library/ssl_cookie.o \
+	mbedtls/library/camellia.o \
+	mbedtls/library/havege.o \
+	mbedtls/library/des.o \
+	mbedtls/library/x509write_csr.o \
+	mbedtls/library/platform.o \
+	mbedtls/library/platform_util.o \
+	mbedtls/library/ctr_drbg.o \
+	mbedtls/library/x509write_crt.o \
+	mbedtls/library/pk_wrap.o \
 	port/net_sockets.o \
 	port/esp_bignum.o \
 	port/esp_hardware.o \
@@ -608,7 +626,7 @@ ESPIDF_MBEDTLS_O = $(addprefix $(ESPCOMP)/mbedtls/,\
 	port/esp_sha512.o \
 	)
 
-$(BUILD)/$(ESPCOMP)/wpa_supplicant/%.o: CFLAGS += -DEMBEDDED_SUPP -D__ets__ -Wno-strict-aliasing
+$(BUILD)/$(ESPCOMP)/wpa_supplicant/%.o: CFLAGS += -DESPRESSIF_USE -DEMBEDDED_SUPP -D__ets__ -Wno-strict-aliasing
 ESPIDF_WPA_SUPPLICANT_O = $(addprefix $(ESPCOMP)/wpa_supplicant/,\
 	src/crypto/aes-internal-enc.o \
 	src/crypto/sha256-internal.o \
@@ -647,6 +665,7 @@ OBJ_ESPIDF += $(addprefix $(BUILD)/, $(ESPIDF_HEAP_O))
 OBJ_ESPIDF += $(addprefix $(BUILD)/, $(ESPIDF_SOC_O))
 OBJ_ESPIDF += $(addprefix $(BUILD)/, $(ESPIDF_CXX_O))
 OBJ_ESPIDF += $(addprefix $(BUILD)/, $(ESPIDF_ETHERNET_O))
+OBJ_ESPIDF += $(addprefix $(BUILD)/, $(ESPIDF_SMARTCONFIG_ACK_O))
 OBJ_ESPIDF += $(addprefix $(BUILD)/, $(ESPIDF_APP_TRACE_O))
 OBJ_ESPIDF += $(addprefix $(BUILD)/, $(ESPIDF_EXPAT_O))
 OBJ_ESPIDF += $(addprefix $(BUILD)/, $(ESPIDF_FREERTOS_O))
@@ -760,7 +779,7 @@ APP_LD_ARGS += $(ESPCOMP)/newlib/lib/libc.a
 APP_LD_ARGS += $(ESPCOMP)/newlib/lib/libm.a
 APP_LD_ARGS += $(ESPCOMP)/esp32/libhal.a
 APP_LD_ARGS += $(BADGE_LIBS)
-APP_LD_ARGS += -L$(ESPCOMP)/esp32/lib -lcore -lnet80211 -lphy -lrtc -lpp -lwpa -lwpa2 -lwps -lsmartconfig -lcoexist
+APP_LD_ARGS += -L$(ESPCOMP)/esp32/lib -lcore -lnet80211 -lmesh -lphy -lrtc -lpp -lwpa -lwpa2 -lwps -lsmartconfig -lcoexist
 APP_LD_ARGS += $(OBJ)
 APP_LD_ARGS += --end-group
 
@@ -801,16 +820,22 @@ BOOTLOADER_OBJ = $(addprefix $(BUILD)/bootloader/$(ESPCOMP)/,\
 	bootloader_support/src/bootloader_sha.o \
 	bootloader_support/src/bootloader_random.o \
 	bootloader_support/src/bootloader_clock.o \
+	bootloader_support/src/bootloader_init.o \
+	bootloader_support/src/bootloader_utility.o \
+	bootloader_support/src/bootloader_common.o \
 	bootloader_support/src/secure_boot_signatures.o \
 	bootloader_support/src/secure_boot.o \
 	bootloader_support/src/esp_image_format.o \
 	bootloader_support/src/flash_encrypt.o \
 	bootloader_support/src/flash_partitions.o \
+	bootloader_support/src/flash_qio_mode.o \
 	log/log.o \
 	spi_flash/spi_flash_rom_patch.o \
+	soc/esp32/cpu_util.o \
 	soc/esp32/rtc_clk.o \
 	soc/esp32/rtc_time.o \
 	soc/esp32/rtc_init.o \
+	soc/esp32/rtc_periph.o \
 	micro-ecc/micro-ecc/uECC.o \
 	bootloader/subproject/main/bootloader_start.o \
 	)
@@ -835,6 +860,7 @@ BOOTLOADER_LDFLAGS += -T $(ESPCOMP)/bootloader/subproject/main/esp32.bootloader.
 BOOTLOADER_LDFLAGS += -T $(ESPCOMP)/bootloader/subproject/main/esp32.bootloader.rom.ld
 BOOTLOADER_LDFLAGS += -T $(ESPCOMP)/esp32/ld/esp32.rom.ld
 BOOTLOADER_LDFLAGS += -T $(ESPCOMP)/esp32/ld/esp32.rom.spiram_incompatible_fns.ld
+BOOTLOADER_LDFLAGS += -T $(ESPCOMP)/esp32/ld/esp32.peripherals.ld
 
 BOOTLOADER_OBJ_DIRS = $(sort $(dir $(BOOTLOADER_OBJ)))
 $(BOOTLOADER_OBJ): | $(BOOTLOADER_OBJ_DIRS)
