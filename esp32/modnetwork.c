@@ -60,13 +60,13 @@ NORETURN void _esp_exceptions(esp_err_t e) {
         mp_raise_msg(&mp_type_OSError, "Wifi Internal Error");
       case ESP_ERR_WIFI_SSID:
         mp_raise_msg(&mp_type_OSError, "Wifi SSID Invalid");
-      case ESP_ERR_WIFI_FAIL:
+      case ESP_FAIL:
         mp_raise_msg(&mp_type_OSError, "Wifi Internal Failure");
       case ESP_ERR_WIFI_IF:
         mp_raise_msg(&mp_type_OSError, "Wifi Invalid Interface");
       case ESP_ERR_WIFI_MAC:
         mp_raise_msg(&mp_type_OSError, "Wifi Invalid MAC Address");
-      case ESP_ERR_WIFI_ARG:
+      case ESP_ERR_INVALID_ARG:
         mp_raise_msg(&mp_type_OSError, "Wifi Invalid Argument");
       case ESP_ERR_WIFI_MODE:
         mp_raise_msg(&mp_type_OSError, "Wifi Invalid Mode");
@@ -83,7 +83,7 @@ NORETURN void _esp_exceptions(esp_err_t e) {
       case ESP_ERR_WIFI_TIMEOUT:
         mp_raise_OSError(MP_ETIMEDOUT);
       case ESP_ERR_TCPIP_ADAPTER_NO_MEM:
-      case ESP_ERR_WIFI_NO_MEM:
+      case ESP_ERR_NO_MEM:
         mp_raise_OSError(MP_ENOMEM);
       default:
         nlr_raise(mp_obj_new_exception_msg_varg(
