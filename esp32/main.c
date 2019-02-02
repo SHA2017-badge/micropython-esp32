@@ -63,9 +63,11 @@
 
 // MicroPython runs as a task under FreeRTOS
 #define MP_TASK_PRIORITY        (ESP_TASK_PRIO_MIN + 1)
-#define MP_TASK_STACK_SIZE      ( 8 * 1024)
+//define MP_TASK_STACK_SIZE      ( 8 * 1024)
+#define MP_TASK_STACK_SIZE      ( 6 * 1024)
 #define MP_TASK_STACK_LEN       (MP_TASK_STACK_SIZE / sizeof(StackType_t))
-#define MP_TASK_HEAP_SIZE       (88 * 1024)
+//define MP_TASK_HEAP_SIZE       (88 * 1024)
+#define MP_TASK_HEAP_SIZE       (20 * 1024)
 
 //define BUTTON_SAFE_MODE ((1 << BADGE_BUTTON_A) || (1 << BADGE_BUTTON_B))
 #define BUTTON_SAFE_MODE ((1 << BADGE_BUTTON_START))
