@@ -231,21 +231,15 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_3(badge_nvs_set_u16_obj, badge_nvs_set_u16_);
 #include "esp_peripherals.h"
 #include "periph_wifi.h"
 #include "badge_power.h"
-void
-do_audio(void) {
-    tcpip_adapter_init();
+
+STATIC mp_obj_t badge_play_mp3_stream(mp_obj_t _url) {
+	const char *url = mp_obj_str_get_str(_url);
 
     audio_pipeline_handle_t pipeline;
     audio_element_handle_t http_stream_reader, i2s_stream_writer, mp3_decoder;
 
-//    esp_log_level_set("*", ESP_LOG_WARN);
-//    esp_log_level_set(TAG, ESP_LOG_DEBUG);
-
     ESP_LOGI(TAG, "[ 1 ] Start audio codec chip");
 	badge_power_sdcard_enable();
-//    audio_hal_codec_config_t audio_hal_codec_cfg =  AUDIO_HAL_ES8388_DEFAULT();
-//    audio_hal_handle_t hal = audio_hal_init(&audio_hal_codec_cfg, 0);
-//    audio_hal_ctrl_codec(hal, AUDIO_HAL_CODEC_MODE_DECODE, AUDIO_HAL_CTRL_START);
 
     ESP_LOGI(TAG, "[2.0] Create audio pipeline for playback");
     audio_pipeline_cfg_t pipeline_cfg = DEFAULT_AUDIO_PIPELINE_CONFIG();
@@ -258,6 +252,12 @@ do_audio(void) {
 
     ESP_LOGI(TAG, "[2.2] Create i2s stream to write data to codec chip");
     i2s_stream_cfg_t i2s_cfg = I2S_STREAM_CFG_DEFAULT();
+
+	// fixes
+	i2s_cfg.i2s_config.mode = I2S_MODE_MASTER | I2S_MODE_TX;
+	i2s_cfg.i2s_config.sample_rate = 48000;
+	i2s_cfg.i2s_config.use_apll = 0; // too far off
+
     i2s_cfg.type = AUDIO_STREAM_WRITER;
     i2s_stream_writer = i2s_stream_init(&i2s_cfg);
 
@@ -274,18 +274,11 @@ do_audio(void) {
     audio_pipeline_link(pipeline, (const char *[]) {"http", "mp3", "i2s"}, 3);
 
     ESP_LOGI(TAG, "[2.6] Setup uri (http as http_stream, mp3 as mp3 decoder, and default output is i2s)");
-    audio_element_set_uri(http_stream_reader, "https://dl.espressif.com/dl/audio/ff-16b-2c-44100hz.mp3");
-
-    ESP_LOGI(TAG, "[ 3 ] Start and wait for Wi-Fi network");
-    esp_periph_config_t periph_cfg = { 0 };
-    esp_periph_init(&periph_cfg);
-    periph_wifi_cfg_t wifi_cfg = {
-        .ssid = CONFIG_WIFI_SSID,
-        .password = CONFIG_WIFI_PASSWORD,
-    };
-    esp_periph_handle_t wifi_handle = periph_wifi_init(&wifi_cfg);
-    esp_periph_start(wifi_handle);
-    periph_wifi_wait_for_connected(wifi_handle, portMAX_DELAY);
+	if (*url == 0) { // empty string; keep as hack to test audio
+	    audio_element_set_uri(http_stream_reader, "https://dl.espressif.com/dl/audio/ff-16b-2c-44100hz.mp3");
+	} else {
+	    audio_element_set_uri(http_stream_reader, url);
+	}
 
     ESP_LOGI(TAG, "[ 4 ] Setup event listener");
     audio_event_iface_cfg_t evt_cfg = AUDIO_EVENT_IFACE_DEFAULT_CFG();
@@ -293,9 +286,6 @@ do_audio(void) {
 
     ESP_LOGI(TAG, "[4.1] Listening event from all elements of pipeline");
     audio_pipeline_set_listener(pipeline, evt);
-
-    ESP_LOGI(TAG, "[4.2] Listening event from peripherals");
-    audio_event_iface_set_listener(esp_periph_get_event_iface(), evt);
 
     ESP_LOGI(TAG, "[ 5 ] Start audio_pipeline");
     audio_pipeline_run(pipeline);
@@ -332,12 +322,26 @@ do_audio(void) {
 
     ESP_LOGI(TAG, "[ 6 ] Stop audio_pipeline");
     audio_pipeline_terminate(pipeline);
+
+    /* Terminate the pipeline before removing the listener */
+    audio_pipeline_unregister(pipeline, http_stream_reader);
+    audio_pipeline_unregister(pipeline, i2s_stream_writer);
+    audio_pipeline_unregister(pipeline, mp3_decoder);
+
+    audio_pipeline_remove_listener(pipeline);
+
+    /* Make sure audio_pipeline_remove_listener & audio_event_iface_remove_listener are called before destroying event_iface */
+    audio_event_iface_destroy(evt);
+
+    /* Release all resources */
+    audio_pipeline_deinit(pipeline);
+    audio_element_deinit(http_stream_reader);
+    audio_element_deinit(i2s_stream_writer);
+    audio_element_deinit(mp3_decoder);
+
+	return mp_const_none;
 }
-STATIC mp_obj_t badge_test_audio() {
-  do_audio();
-  return mp_obj_new_int(0);
-}
-STATIC MP_DEFINE_CONST_FUN_OBJ_0(badge_test_audio_obj, badge_test_audio);
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(badge_play_mp3_stream_obj, badge_play_mp3_stream);
 
 // I2C (badge_i2c.h)
 STATIC mp_obj_t badge_i2c_read_reg_(mp_obj_t _addr, mp_obj_t _reg, mp_obj_t _len) {
@@ -891,7 +895,7 @@ STATIC const mp_rom_map_elem_t badge_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_i2c_write_reg), MP_ROM_PTR(&badge_i2c_write_reg_obj)},
 
 	// audio
-    {MP_OBJ_NEW_QSTR(MP_QSTR_test_audio), (mp_obj_t)&badge_test_audio_obj},
+    {MP_OBJ_NEW_QSTR(MP_QSTR_play_mp3_stream), (mp_obj_t)&badge_play_mp3_stream_obj},
 
     // Mpr121
 #ifdef I2C_MPR121_ADDR
