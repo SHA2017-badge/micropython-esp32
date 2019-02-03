@@ -65,6 +65,7 @@ INC += -I../../components/esp_peripherals/include
 INC += -I../../components/esp_peripherals/lib/blufi
 INC += -I../../components/tcp_transport/include
 INC += -I../../components/esp-adf-libs/esp_codec/include/codec
+INC += -I../../components/esp-adf-libs/esp_codec/include/processing
 INC += -I../../components/esp-tls
 INC += -I../../main
 INC += -I../../ugfx/src/gdisp/mcufont
@@ -164,6 +165,7 @@ SRC_C = \
 	modsocket.c \
 	modesp.c \
 	modbpp.c \
+	modaudio.c \
 	modbadge.c \
 	modugfx.c \
 	modfreedomgfx.c \
@@ -673,6 +675,7 @@ ESPADF_O = $(addprefix $(PROJECT_PATH)/components/,\
 	audio_pipeline/audio_event_iface.o \
 	audio_pipeline/ringbuf.o \
 	audio_sal/audio_mem.o \
+	audio_stream/fatfs_stream.o \
 	audio_stream/http_stream.o \
 	audio_stream/i2s_stream.o \
 	esp_http_client/esp_http_client.o \
