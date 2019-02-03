@@ -1,29 +1,8 @@
-
 #include <string.h>
-
-#include "modaudio.h"
-
-#include "esp_log.h"
-#include "esp_vfs.h"
-#include "esp_vfs_fat.h"
-
-#include "bpp_init.h"
-
-#include "badge_i2c.h"
-#include "badge_mpr121.h"
 
 #include "py/mperrno.h"
 #include "py/mphal.h"
 #include "py/runtime.h"
-
-#define TAG "esp32/modaudio"
-
-
-// audio
-#define IIS_SCLK 33
-#define IIS_LCLK 12
-#define IIS_DSIN 4
-#define IIS_DOUT -1
 
 #include "esp_log.h"
 #include "audio_element.h"
@@ -34,32 +13,72 @@
 #include "http_stream.h"
 #include "i2s_stream.h"
 #include "mp3_decoder.h"
-#include "esp_peripherals.h"
-#include "periph_wifi.h"
 #include "badge_power.h"
+
+#include "modaudio.h"
+
+#define TAG "esp32/modaudio"
 
 extern unsigned int i2s_stream_volume;
 
 STATIC mp_obj_t audio_volume(mp_uint_t n_args, const mp_obj_t *args) {
-	if (n_args > 0){
-		int v = mp_obj_get_int(args[0]);
-		if (v < 0) v = 0;
-		else if (v > 128) v = 128;
-		i2s_stream_volume = v;
-	}
+    if (n_args > 0){
+        int v = mp_obj_get_int(args[0]);
+        if (v < 0) v = 0;
+        else if (v > 128) v = 128;
+        i2s_stream_volume = v;
+    }
 
     return mp_obj_new_int(i2s_stream_volume);
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(audio_volume_obj, 0, 1, audio_volume);
 
+static audio_element_handle_t _init_i2s_stream(void) {
+#define IIS_SCLK 33
+#define IIS_LCLK 12
+#define IIS_DSIN 4
+#define IIS_DOUT -1
+
+    i2s_stream_cfg_t i2s_cfg = {
+        .type           = AUDIO_STREAM_WRITER,
+        .task_prio      = I2S_STREAM_TASK_PRIO,
+        .task_core      = I2S_STREAM_TASK_CORE,
+        .task_stack     = I2S_STREAM_TASK_STACK,
+        .out_rb_size    = I2S_STREAM_RINGBUFFER_SIZE,
+        .i2s_config     = {
+            .mode                 = I2S_MODE_MASTER | I2S_MODE_TX, // write only
+            .sample_rate          = 44100, // set to 48000 ?
+            .bits_per_sample      = 16,
+            .channel_format       = I2S_CHANNEL_FMT_RIGHT_LEFT,
+            .communication_format = I2S_COMM_FORMAT_I2S,
+            .dma_buf_count        = 3,
+            .dma_buf_len          = 300,
+            .use_apll             = 0, // real sample-rate is too far off when enabled
+            .intr_alloc_flags     = ESP_INTR_FLAG_LEVEL2,
+        },
+        .i2s_pin_config = {
+            .bck_io_num   = IIS_SCLK,
+            .ws_io_num    = IIS_LCLK,
+            .data_out_num = IIS_DSIN,
+            .data_in_num  = IIS_DOUT,
+        },
+        .i2s_port       = 0,
+    };
+
+    audio_element_handle_t i2s_stream_writer = i2s_stream_init(&i2s_cfg);
+    assert( i2s_stream_writer != NULL );
+
+    return i2s_stream_writer;
+}
+
 STATIC mp_obj_t audio_play_mp3_file(mp_obj_t _file) {
-	const char *file = mp_obj_str_get_str(_file);
+    const char *file = mp_obj_str_get_str(_file);
 
     audio_pipeline_handle_t pipeline;
     audio_element_handle_t fatfs_stream_reader, i2s_stream_writer, mp3_decoder;
 
     ESP_LOGI(TAG, "[ 1 ] Start audio codec chip");
-	badge_power_sdcard_enable();
+    badge_power_sdcard_enable();
 
     ESP_LOGI(TAG, "[2.0] Create audio pipeline for playback");
     audio_pipeline_cfg_t pipeline_cfg = DEFAULT_AUDIO_PIPELINE_CONFIG();
@@ -72,15 +91,7 @@ STATIC mp_obj_t audio_play_mp3_file(mp_obj_t _file) {
     fatfs_stream_reader = fatfs_stream_init(&fatfs_cfg);
 
     ESP_LOGI(TAG, "[2.2] Create i2s stream to write data to codec chip");
-    i2s_stream_cfg_t i2s_cfg = I2S_STREAM_CFG_DEFAULT();
-
-	// fixes
-	i2s_cfg.i2s_config.mode = I2S_MODE_MASTER | I2S_MODE_TX;
-	i2s_cfg.i2s_config.sample_rate = 48000;
-	i2s_cfg.i2s_config.use_apll = 0; // too far off
-
-    i2s_cfg.type = AUDIO_STREAM_WRITER;
-    i2s_stream_writer = i2s_stream_init(&i2s_cfg);
+    i2s_stream_writer = _init_i2s_stream();
 
     ESP_LOGI(TAG, "[2.3] Create mp3 decoder to decode mp3 file");
     mp3_decoder_cfg_t mp3_cfg = DEFAULT_MP3_DECODER_CONFIG();
@@ -95,11 +106,11 @@ STATIC mp_obj_t audio_play_mp3_file(mp_obj_t _file) {
     audio_pipeline_link(pipeline, (const char *[]) {"file", "mp3", "i2s"}, 3);
 
     ESP_LOGI(TAG, "[2.6] Setup uri (http as http_stream, mp3 as mp3 decoder, and default output is i2s)");
-	if (*file == 0) { // empty string; keep as hack to test audio
-	    audio_element_set_uri(fatfs_stream_reader, "/sdcard/audio/ff-16b-2c-44100hz.mp3");
-	} else {
-	    audio_element_set_uri(fatfs_stream_reader, file);
-	}
+    if (*file == 0) { // empty string; keep as hack to test audio
+        audio_element_set_uri(fatfs_stream_reader, "/sdcard/audio/ff-16b-2c-44100hz.mp3");
+    } else {
+        audio_element_set_uri(fatfs_stream_reader, file);
+    }
 
     ESP_LOGI(TAG, "[ 4 ] Setup event listener");
     audio_event_iface_cfg_t evt_cfg = AUDIO_EVENT_IFACE_DEFAULT_CFG();
@@ -130,6 +141,7 @@ STATIC mp_obj_t audio_play_mp3_file(mp_obj_t _file) {
 
             audio_element_setinfo(i2s_stream_writer, &music_info);
             i2s_stream_set_clk(i2s_stream_writer, music_info.sample_rates, music_info.bits, music_info.channels);
+            // return mp_const_none; // this is a hack to return to micropython and be able to play with the volume
             continue;
         }
 
@@ -160,18 +172,18 @@ STATIC mp_obj_t audio_play_mp3_file(mp_obj_t _file) {
     audio_element_deinit(i2s_stream_writer);
     audio_element_deinit(mp3_decoder);
 
-	return mp_const_none;
+    return mp_const_none;
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(audio_play_mp3_file_obj, audio_play_mp3_file);
 
 STATIC mp_obj_t audio_play_mp3_stream(mp_obj_t _url) {
-	const char *url = mp_obj_str_get_str(_url);
+    const char *url = mp_obj_str_get_str(_url);
 
     audio_pipeline_handle_t pipeline;
     audio_element_handle_t http_stream_reader, i2s_stream_writer, mp3_decoder;
 
     ESP_LOGI(TAG, "[ 1 ] Start audio codec chip");
-	badge_power_sdcard_enable();
+    badge_power_sdcard_enable();
 
     ESP_LOGI(TAG, "[2.0] Create audio pipeline for playback");
     audio_pipeline_cfg_t pipeline_cfg = DEFAULT_AUDIO_PIPELINE_CONFIG();
@@ -183,15 +195,7 @@ STATIC mp_obj_t audio_play_mp3_stream(mp_obj_t _url) {
     http_stream_reader = http_stream_init(&http_cfg);
 
     ESP_LOGI(TAG, "[2.2] Create i2s stream to write data to codec chip");
-    i2s_stream_cfg_t i2s_cfg = I2S_STREAM_CFG_DEFAULT();
-
-	// fixes
-	i2s_cfg.i2s_config.mode = I2S_MODE_MASTER | I2S_MODE_TX;
-	i2s_cfg.i2s_config.sample_rate = 48000;
-	i2s_cfg.i2s_config.use_apll = 0; // too far off
-
-    i2s_cfg.type = AUDIO_STREAM_WRITER;
-    i2s_stream_writer = i2s_stream_init(&i2s_cfg);
+    i2s_stream_writer = _init_i2s_stream();
 
     ESP_LOGI(TAG, "[2.3] Create mp3 decoder to decode mp3 file");
     mp3_decoder_cfg_t mp3_cfg = DEFAULT_MP3_DECODER_CONFIG();
@@ -206,11 +210,11 @@ STATIC mp_obj_t audio_play_mp3_stream(mp_obj_t _url) {
     audio_pipeline_link(pipeline, (const char *[]) {"http", "mp3", "i2s"}, 3);
 
     ESP_LOGI(TAG, "[2.6] Setup uri (http as http_stream, mp3 as mp3 decoder, and default output is i2s)");
-	if (*url == 0) { // empty string; keep as hack to test audio
-	    audio_element_set_uri(http_stream_reader, "https://dl.espressif.com/dl/audio/ff-16b-2c-44100hz.mp3");
-	} else {
-	    audio_element_set_uri(http_stream_reader, url);
-	}
+    if (*url == 0) { // empty string; keep as hack to test audio
+        audio_element_set_uri(http_stream_reader, "https://dl.espressif.com/dl/audio/ff-16b-2c-44100hz.mp3");
+    } else {
+        audio_element_set_uri(http_stream_reader, url);
+    }
 
     ESP_LOGI(TAG, "[ 4 ] Setup event listener");
     audio_event_iface_cfg_t evt_cfg = AUDIO_EVENT_IFACE_DEFAULT_CFG();
@@ -241,6 +245,7 @@ STATIC mp_obj_t audio_play_mp3_stream(mp_obj_t _url) {
 
             audio_element_setinfo(i2s_stream_writer, &music_info);
             i2s_stream_set_clk(i2s_stream_writer, music_info.sample_rates, music_info.bits, music_info.channels);
+            // return mp_const_none; // this is a hack to return to micropython and be able to play with the volume
             continue;
         }
 
@@ -271,7 +276,7 @@ STATIC mp_obj_t audio_play_mp3_stream(mp_obj_t _url) {
     audio_element_deinit(i2s_stream_writer);
     audio_element_deinit(mp3_decoder);
 
-	return mp_const_none;
+    return mp_const_none;
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(audio_play_mp3_stream_obj, audio_play_mp3_stream);
 
