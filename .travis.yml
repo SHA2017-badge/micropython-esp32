@@ -35,7 +35,7 @@ script:
   # Save new firmware for reference, but only if building a main branch, not a pull request
   - 'if [ "$TRAVIS_PULL_REQUEST" = "false" ]; then cp minimal/build/firmware.bin ${HOME}/persist/; fi'
   - make -C unix deplibs
-  - make -C unix
+  - make -C unix micropython
   - make -C unix nanbox
   - make -C bare-arm
   - make -C qemu-arm test
@@ -49,18 +49,18 @@ script:
   - make -C windows CROSS_COMPILE=i686-w64-mingw32-
 
   # run tests without coverage info
-  #- (cd tests && MICROPY_CPYTHON3=python3.4 ./run-tests)
-  #- (cd tests && MICROPY_CPYTHON3=python3.4 ./run-tests --emit native)
+  - (cd tests && MICROPY_CPYTHON3=python3.4 ./run-tests)
+  - (cd tests && MICROPY_CPYTHON3=python3.4 ./run-tests --emit native)
 
   # run tests with coverage info
-  - make -C unix coverage
-  - (cd tests && MICROPY_CPYTHON3=python3.4 MICROPY_MICROPYTHON=../unix/micropython_coverage ./run-tests)
-  - (cd tests && MICROPY_CPYTHON3=python3.4 MICROPY_MICROPYTHON=../unix/micropython_coverage ./run-tests -d thread)
-  - (cd tests && MICROPY_CPYTHON3=python3.4 MICROPY_MICROPYTHON=../unix/micropython_coverage ./run-tests --emit native)
-  - (cd tests && MICROPY_CPYTHON3=python3.4 MICROPY_MICROPYTHON=../unix/micropython_coverage ./run-tests --via-mpy -d basics float)
+  #- make -C unix coverage
+  #- (cd tests && MICROPY_CPYTHON3=python3.4 MICROPY_MICROPYTHON=../unix/micropython_coverage ./run-tests)
+  #- (cd tests && MICROPY_CPYTHON3=python3.4 MICROPY_MICROPYTHON=../unix/micropython_coverage ./run-tests -d thread)
+  #- (cd tests && MICROPY_CPYTHON3=python3.4 MICROPY_MICROPYTHON=../unix/micropython_coverage ./run-tests --emit native)
+  #- (cd tests && MICROPY_CPYTHON3=python3.4 MICROPY_MICROPYTHON=../unix/micropython_coverage ./run-tests --via-mpy -d basics float)
 
   # run coveralls coverage analysis (try to, even if some builds/tests failed)
-  - (cd unix && coveralls --root .. --build-root . --gcov $(which gcov) --gcov-options '\-o build-coverage/' --include py --include extmod)
+  #- (cd unix && coveralls --root .. --build-root . --gcov $(which gcov) --gcov-options '\-o build-coverage/' --include py --include extmod)
 
 after_failure:
   - (cd tests && for exp in *.exp; do testbase=$(basename $exp .exp); echo -e "\nFAILURE $testbase"; diff -u $testbase.exp $testbase.out; done)
